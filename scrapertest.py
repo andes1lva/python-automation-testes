@@ -12,10 +12,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 
-url = "https://oncloud.oab-ba.org.br/index.php"#url que irá ser baixada para a coleta de dados
+url = "https://www.mercadolivre.com.br/"#url que irá ser baixada para a coleta de dados
 
 
-login_url="https://oncloud.oab-ba.org.br" # variável que recebe o login da url
+login_url="https://www.mercadolivre.com.br/" # variável que recebe o login da url
 login_data = { #dados  e atributos de acesso à url principal
     "username": "",
     "password": ""
