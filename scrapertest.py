@@ -1,174 +1,185 @@
-import requests
+# -*- coding: utf-8 -*-
+"""
+OAB-BA OnCloud - Login ANTI-DELAY + EXTRAÇÃO AVANÇADA (2025)
+Corrigido para demora no clique e redirecionamento JS
+"""
+
 import time
-from urllib.parse import urljoin
 import re
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup, NavigableString, Comment
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.sync_api import sync_playwright
 
-url = "https://www.kabum.com.br/"
-login_url = "https://www.kabum.com.br/"
-login_data = {
-    "username": "",
-    "password": ""
-}
+# ================================== CONFIGURAÇÃO ==================================
+USERNAME = "cloudn2field"          # ← Seu usuário real
+PASSWORD = "cloudn2field"          # ← Sua senha real
 
-# Lista de proxies para rotacionar (exemplo)
-proxy_pool = [
-    "http://proxyuser:proxypass@1.2.3.4:8080",
-    "http://proxyuser:proxypass@2.3.4.5:8080",
-    # adicione proxies funcionais aqui
-]
+LOGIN_URL = "https://oncloud.oab-ba.org.br/index.php/login"
+HOME_URL = "https://oncloud.oab-ba.org.br/index.php/site/index"
 
-html_content = None
-
-def wait_for_redirect_stabilize(driver, timeout=15, check_interval=0.5, stable_duration=2):
-    start_time = time.time()
-    last_url = driver.current_url
+# ==============================================================================
+def wait_for_page_stable(page, timeout=30):
+    """Espera a página estabilizar (sem redirecionamentos)"""
+    start = time.time()
+    last_url = page.url
     stable_time = 0
-    while time.time() - start_time < timeout:
-        time.sleep(check_interval)
-        current_url = driver.current_url
+    while time.time() - start < timeout:
+        time.sleep(0.5)
+        current_url = page.url
         if current_url == last_url:
-            stable_time += check_interval
-            if stable_time >= stable_duration:
+            stable_time += 0.5
+            if stable_time >= 2:
                 return True
         else:
             last_url = current_url
             stable_time = 0
-    raise TimeoutError("Redirecionamento não estabilizou no tempo esperado")
+    return False
 
-def selenium_login_and_get_html():
-    chrome_options = Options()
-    # Comente --headless para visualizar o browser (ajuda em debug)
-    # chrome_options.add_argument("--headless")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    service = Service(executable_path=r"C:\Users\JULIA MONIZ\Documents\python-automation-testes\chromedriver-win64\chromedriver.exe")
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+def extrair_conteudo_avancado(html):
+    """Extrai tudo: headers, textos limpos, comentários, links, etc"""
+    soup = BeautifulSoup(html, "lxml")
 
-    try:
-        driver.get(login_url)
-        wait_for_redirect_stabilize(driver)
-        wait = WebDriverWait(driver, 30)
-        wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.classe-relevante')))
+    print("\n" + "="*90)
+    print(" EXTRAÇÃO AVANÇADA DO CONTEÚDO (BeautifulSoup + NavigableString + Comment) ".center(90))
+    print("="*90)
 
+    # Título
+    titulo = soup.title.get_text(strip=True) if soup.title else "Sem título"
+    print(f"TÍTULO DA PÁGINA: {titulo}")
 
-        # Ajuste esse bloco se o site não precisa ou tem outro seletor para login
-        user_input = wait.until(EC.presence_of_element_located((By.NAME, "user")))
-        user_input.send_keys(login_data["username"])
-        password_input = wait.until(EC.presence_of_element_located((By.NAME, "password")))
-        password_input.send_keys(login_data["password"])
-        login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[type="submit"]')))
-        login_button.click()
+    # Saudação / Usuário logado
+    saudacao = soup.find(string=re.compile(r"Bem[ -]?vindo|Olá|Advogad[ao]", re.I))
+    if saudacao:
+        print(f"USUÁRIO LOGADO: {saudacao.strip()}")
 
-        wait_for_redirect_stabilize(driver)
-        wait.until(EC.url_contains("index.php"))
-        driver.get(url)
+    # Todos os headers (h1 a h6)
+    print("\nHEADERS ENCONTRADOS:")
+    headers = soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
+    for h in headers:
+        print(f"   {h.name.upper()}: {h.get_text(strip=True)}")
 
-        page_source = driver.page_source
-        print("Conteúdo HTML capturado pelo Selenium (primeiros 500 chars):")
-        print(page_source[:500])
-        with open("pagina_capturada.html", "w", encoding="utf-8") as f:
-            f.write(page_source)
-        return page_source
+    # Todos os links do menu
+    print(f"\nMENU PRINCIPAL ({len(soup.find_all('a', href=True))} links encontrados):")
+    for a in soup.find_all("a", href=True):
+        texto = a.get_text(strip=True)
+        if texto and len(texto) > 3 and texto.lower() not in ["sair", "logout", "fechar"]:
+            link = urljoin("https://oncloud.oab-ba.org.br/", a["href"])
+            print(f"   • {texto} → {link}")
 
-    except Exception as e:
-        print(f"Erro no Selenium: {e}")
-        return None
+    # Textos limpos (sem tags, só conteúdo real)
+    print(f"\nTEXTOS LIMPOS DA PÁGINA (NavigableString):")
+    textos = [t.strip() for t in soup.find_all(string=True)
+              if isinstance(t, NavigableString)
+              and not isinstance(t, Comment)
+              and t.parent.name not in ['script', 'style', 'head', 'title']
+              and t.strip()]
+    for texto in textos[:30]:  # Mostra só os 30 primeiros
+        print(f"   → {texto}")
 
-    finally:
-        driver.quit()
+    # Comentários HTML (útil para debug)
+    print(f"\nCOMENTÁRIOS HTML ENCONTRADOS:")
+    comentarios = soup.find_all(string=lambda text: isinstance(text, Comment))
+    if comentarios:
+        for c in comentarios:
+            print(f"   <!-- {c.strip()} -->")
+    else:
+        print("   Nenhum comentário encontrado.")
 
-try:
-    with requests.Session() as session:
-        session.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'})
-        login_response = session.post(login_url, data=login_data)
-        login_response.raise_for_status()
-        print(login_response.text[:500])
+    print(f"\nEXTRAÇÃO CONCLUÍDA! Total de elementos analisados: {len(soup.find_all())}")
+    print("="*90)
 
-        if login_response.text and "logout" in login_response.text.lower():
-            print("Login realizado com sucesso")
-            page_response = session.get(url)
-            page_response.raise_for_status()
-            html_content = page_response.text
-            print(html_content[:500])
+# ==============================================================================
+def login_oab_oncloud():
+    print(f"[{time.strftime('%H:%M:%S')}] Iniciando login no OnCloud OAB-BA...")
 
-            needs_login = ('name="user"' in html_content) and ('logout' not in html_content.lower())
-            if needs_login:
-                print("Site requer login, tentando autenticar...")
-                login_response = session.post(login_url, data=login_data)
-                login_response.raise_for_status()
-                print(login_response.text[:500])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=False,  # ← Mude para True depois que funcionar
+            slow_mo=1200,    # ← Aumentado para você ver o clique
+            args=["--start-maximized", "--no-sandbox", "--disable-blink-features=AutomationControlled"]
+        )
 
-                if login_response.text and "logout" in login_response.text.lower():
-                    print("Login realizado com sucesso")
-                    page_response = session.get(url)
-                    page_response.raise_for_status()
-                    html_content = page_response.text
-                    print(html_content[:500])
+        context = browser.new_context(
+            viewport={"width": 1600, "height": 900},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+            locale="pt-BR"
+        )
+
+        context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => false});")
+
+        page = context.new_page()
+
+        try:
+            print(f"[{time.strftime('%H:%M:%S')}] Acessando login...")
+            page.goto(LOGIN_URL, wait_until="networkidle", timeout=90000)
+
+            # Espera Cloudflare
+            for i in range(60):
+                if any(x in page.content() for x in ["Just a moment", "Checking"]):
+                    print(f"   Cloudflare ativo... {i+1}s")
+                    time.sleep(1)
                 else:
-                    print("Login com request falhou, usando Selenium...")
-                    html_content = selenium_login_and_get_html()
+                    print("   Cloudflare passou!")
+                    break
 
-        if html_content is not None and 'window.location.href' in html_content:
-            match = re.search(r'window\.location\.href\s*=\s*["\']([^"\']+)["\']', html_content)
-            if match:
-                redirect_url = urljoin(url, match.group(1))
-                print(f"Detectado redirecionamento para {redirect_url}, via requests, usando Selenium...")
-                html_content = selenium_login_and_get_html()
-                print(html_content[:500])
+            # Espera campo correto (é "user", não "username"!)
+            page.wait_for_selector("input[name='user'], input#user", timeout=90000)
+
+            print(f"[{time.strftime('%H:%M:%S')}] Preenchendo credenciais...")
+            page.fill("input[name='user']", USERNAME)
+            page.fill("input[name='password']", PASSWORD)
+
+            # === NOVA PARTE: ESPERA O BOTÃO FICAR CLICÁVEL ===
+            print(f"[{time.strftime('%H:%M:%S')}] Aguardando botão 'Entrar' ficar pronto (até 30s)...")
+            page.wait_for_selector("button:has-text('Entrar'), button[type='submit']", state="visible", timeout=30000)
+
+            print(f"[{time.strftime('%H:%M:%S')}] Clicando no botão...")
+            page.click("button:has-text('Entrar'), button[type='submit']", timeout=10000)
+
+            # === NOVA PARTE: PROCESSAMENTO PÓS-CLIQUE ===
+            print(f"[{time.strftime('%H:%M:%S')}] Processando login (aguardando JS + redirecionamento, até 15s)...")
+            time.sleep(15)  # Dá tempo pro JS do ownCloud processar
+
+            # Verifica se login falhou (erro na página)
+            content_lower = page.content().lower()
+            if "inválido" in content_lower or "erro" in content_lower or "falha" in content_lower:
+                print("ERRO: Login falhou! Verifique credenciais ou CAPTCHA.")
+                return None
+
+            # Verifica se sucesso (aparece "logout" ou redireciona)
+            if "logout" in content_lower or "site/index" in page.url:
+                print("LOGIN BEM-SUCEDIDO! (detectado por conteúdo)")
             else:
-                print("Site não requer login, usando conteúdo obtido direto.")
+                print("AVISO: Não redirecionou, mas continuando...")
 
-except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
-    print(f"Erro requests: {e}, tentando Selenium...")
-    html_content = selenium_login_and_get_html()
-except Exception as e:
-    print(f"Erro inesperado: {e}, tentando Selenium...")
-    html_content = selenium_login_and_get_html()
+            # Tenta ir pra home mesmo assim
+            print(f"[{time.strftime('%H:%M:%S')}] Indo para home...")
+            page.goto(HOME_URL, timeout=60000)
+            time.sleep(6)
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(3)
 
-if not html_content:
-    print("Não foi possível obter conteúdo da página após todas as tentativas.")
-    exit()
+            html = page.content()
 
-bsObject = BeautifulSoup(html_content, "lxml")
+            # Salva HTML completo
+            with open("oab_oncloud_logado.html", "w", encoding="utf-8") as f:
+                f.write(html)
 
-print("Título da página .", bsObject.title.get_text(strip=True) if bsObject.title else "Sem título")
+            print("HTML da área restrita salvo com sucesso!")
 
-header_tags = ["h1","h2","h3","h4","h5","h6"]
-current_tag = bsObject.find(header_tags)
+            # === EXTRAÇÃO AVANÇADA ===
+            extrair_conteudo_avancado(html)
 
-while current_tag:
-    print(f"{current_tag.name} : {current_tag.get_text(strip=True)}")
-    next_tag = current_tag.find_next()
-    while next_tag and next_tag.name not in header_tags:
-        next_tag = next_tag.find_next()
-    current_tag = next_tag
+            return html
 
-for header in bsObject.find_all(header_tags):
-    print(f"\nHeader: {header.name} -> {header.get_text(strip=True)}")
-    for sibling in header.next_siblings:
-        if sibling.name:
-            print(f"Próximo irmão: {sibling.name}")
-            for child in sibling.children:
-                if child.name:
-                    text = child.get_text(strip=True)
-                    print(f"Filho do irmão: {child.name} - text: {text}")
+        except Exception as e:
+            print(f"Erro: {e}")
+            page.screenshot(path="erro_final.png")
+            print("Screenshot salvo como erro_final.png")
+        finally:
+            input("\nPressione ENTER para fechar o navegador...")
+            browser.close()
 
-print("\nExtrair textos dos websites(NavigableString)")
-for text in bsObject.find_all(string=True):
-    if isinstance(text, NavigableString) and not isinstance(text, Comment):
-        clean_text = text.strip()
-        if clean_text:
-            print(clean_text)
-
-print("\nExtrair comentários das tag nos websites(NavigableString)")
-for comment in bsObject.find_all(string=lambda text: isinstance(text, Comment)):
-    print(comment)
+# ==============================================================================
+if __name__ == "__main__":
+    login_oab_oncloud()
