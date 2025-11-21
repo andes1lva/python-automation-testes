@@ -13,11 +13,14 @@ from selenium.webdriver.support import expected_conditions as EC
 
 
 url = "https://oncloud.oab-ba.org.br/index.php"#url que irá ser baixada para a coleta de dados
+
+
 login_url="https://oncloud.oab-ba.org.br" # variável que recebe o login da url
 login_data = { #dados  e atributos de acesso à url principal
-    "username": "cloudn2field",
-    "password": "cloudn2field"
+    "username": "",
+    "password": ""
 }
+
 html_content = None #vai guardar o HTML final
 
 def wait_for_redirect_stabilize(driver, timeout=15, check_interval=0.5, stable_duration=2):
