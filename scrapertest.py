@@ -10,8 +10,8 @@ import sys
 # ===================================================================
 # CONFIGURAÇÃO ÚNICA — MUDE APENAS ESSAS 4 LINHAS
 # ===================================================================
-USERNAME     = "cloudn2field"                          # seu usuário
-PASSWORD     = "cloudn2field"                          # sua senha
+USERNAME     = ""                          # seu usuário
+PASSWORD     = ""                          # sua senha
 LOGIN_URL    = "https://oncloud.oab-ba.org.br/index.php/login"   # página de login
 START_URL    = "https://oncloud.oab-ba.org.br/index.php/apps/files/"   # URL que abre logo após login (geralmente /apps/files/)
 # ===================================================================
